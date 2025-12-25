@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useGameStore } from "@/store/game-store";
+import { useRealtimeGame } from "@/hooks/use-realtime-game";
 import type { Hint, Answer, Player } from "@/types";
 
 interface RoundData {
@@ -48,12 +49,14 @@ export function QuizGame() {
     players,
     timeRemaining,
     hasAnswered,
-    setGame,
     setPlayers,
     setTimeRemaining,
     decrementTime,
     setHasAnswered,
   } = useGameStore();
+
+  // Use realtime for game and player updates
+  useRealtimeGame();
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -82,45 +85,15 @@ export function QuizGame() {
     }
   }, [gameId, playerId, setTimeRemaining, setHasAnswered]);
 
-  // Poll for game status updates
-  const pollGameStatus = useCallback(async () => {
-    if (!gameId) return;
-
-    try {
-      const response = await fetch(`/api/game?gameId=${gameId}`);
-      const data = await response.json();
-
-      if (data.success) {
-        setGame(data.game);
-        setPlayers(data.players);
-
-        // Check for round changes
-        if (
-          data.game.status === "playing" &&
-          roundData?.roundNumber !== data.game.current_round
-        ) {
-          fetchRound();
-        }
+  // Initial round fetch and when round changes
+  useEffect(() => {
+    if (game?.status === "playing") {
+      // Check if we need to fetch a new round
+      if (!roundData || roundData.roundNumber !== game.current_round) {
+        fetchRound();
       }
-    } catch (err) {
-      console.error("Error polling game status:", err);
     }
-  }, [gameId, roundData?.roundNumber, setGame, setPlayers, fetchRound]);
-
-  // Initial round fetch
-  useEffect(() => {
-    if (game?.status === "playing" && !roundData) {
-      fetchRound();
-    }
-  }, [game?.status, roundData, fetchRound]);
-
-  // Poll for updates
-  useEffect(() => {
-    if (gameId) {
-      const interval = setInterval(pollGameStatus, 2000);
-      return () => clearInterval(interval);
-    }
-  }, [gameId, pollGameStatus]);
+  }, [game?.status, game?.current_round, roundData, fetchRound]);
 
   // Timer countdown
   useEffect(() => {
@@ -229,20 +202,15 @@ export function QuizGame() {
     if (!gameId) return;
 
     try {
-      const response = await fetch("/api/game", {
+      await fetch("/api/game", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ gameId, action: "next_round" }),
       });
-
-      const data = await response.json();
-
-      if (data.success) {
-        setGame(data.game);
-        setPlayers(data.players);
-        setRoundData(null);
-        setRoundResult(null);
-      }
+      
+      // Game state will update via realtime, then trigger fetchRound
+      setRoundData(null);
+      setRoundResult(null);
     } catch (err) {
       console.error("Error advancing round:", err);
     }

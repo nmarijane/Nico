@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useGameStore } from "@/store/game-store";
+import { useRealtimeGame } from "@/hooks/use-realtime-game";
 import type { Player } from "@/types";
 
 type TabType = "create" | "join";
@@ -35,29 +36,8 @@ export function GameLobby() {
     logout,
   } = useGameStore();
 
-  // Poll for game updates when in lobby
-  const pollGameStatus = useCallback(async () => {
-    if (!gameId) return;
-
-    try {
-      const response = await fetch(`/api/game?gameId=${gameId}`);
-      const data = await response.json();
-
-      if (data.success) {
-        setGame(data.game);
-        setPlayers(data.players);
-      }
-    } catch (err) {
-      console.error("Error polling game status:", err);
-    }
-  }, [gameId, setGame, setPlayers]);
-
-  useEffect(() => {
-    if (gameId && game?.status === "waiting") {
-      const interval = setInterval(pollGameStatus, 2000);
-      return () => clearInterval(interval);
-    }
-  }, [gameId, game?.status, pollGameStatus]);
+  // Use realtime subscription instead of polling
+  useRealtimeGame();
 
   const handleCreateGame = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -130,12 +110,10 @@ export function GameLobby() {
 
       const data = await response.json();
 
-      if (data.success) {
-        setGame(data.game);
-        setPlayers(data.players);
-      } else {
+      if (!data.success) {
         setError(data.error || "Erreur lors du démarrage");
       }
+      // Game state will be updated via realtime subscription
     } catch {
       setError("Erreur de connexion au serveur");
     } finally {
@@ -184,6 +162,12 @@ export function GameLobby() {
             <p>📊 {game.total_rounds} manches</p>
             <p>⏱️ {game.time_per_question} secondes par question</p>
           </div>
+
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
 
           {isHost ? (
             <div className="space-y-2">
@@ -317,7 +301,7 @@ export function GameLobby() {
                 id="code"
                 value={joinCode}
                 onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-                placeholder="Ex: ABC12345"
+                placeholder="Ex: ABC123"
                 required
                 maxLength={8}
                 className="font-mono uppercase"

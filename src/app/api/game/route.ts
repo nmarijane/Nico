@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { v4 as uuidv4 } from "uuid";
 import {
   createGame,
   getGame,
@@ -10,7 +9,6 @@ import {
   deleteGame,
 } from "@/lib/db";
 import { getRandomMedia, generateHints, getMediaTitle } from "@/lib/tmdb";
-import type { Game, Player } from "@/types";
 
 // Create a new game
 export async function POST(request: NextRequest) {
@@ -24,14 +22,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const gameId = uuidv4().slice(0, 8).toUpperCase();
-    const playerId = uuidv4();
+    // Generate a short game ID
+    const gameId = Math.random().toString(36).substring(2, 8).toUpperCase();
 
     // Create the game
-    createGame(gameId, totalRounds, timePerQuestion);
+    await createGame(gameId, totalRounds, timePerQuestion);
 
     // Add the host player
-    addPlayer(playerId, gameId, playerName.trim(), true);
+    const player = await addPlayer(gameId, playerName.trim(), true);
 
     // Generate rounds with random media
     const media = await getRandomMedia(totalRounds);
@@ -39,10 +37,8 @@ export async function POST(request: NextRequest) {
     for (let i = 0; i < media.length; i++) {
       const m = media[i];
       const hints = generateHints(m);
-      const roundId = uuidv4();
       
-      createRound(
-        roundId,
+      await createRound(
         gameId,
         i + 1,
         m.id,
@@ -50,17 +46,17 @@ export async function POST(request: NextRequest) {
         getMediaTitle(m),
         m.poster_path,
         m.overview,
-        JSON.stringify(hints)
+        hints
       );
     }
 
-    const game = getGame(gameId) as Game;
-    const players = getPlayersByGame(gameId) as Player[];
+    const game = await getGame(gameId);
+    const players = await getPlayersByGame(gameId);
 
     return NextResponse.json({
       success: true,
       game,
-      playerId,
+      playerId: player.id,
       players,
     });
   } catch (error) {
@@ -85,7 +81,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const game = getGame(gameId) as Game | undefined;
+    const game = await getGame(gameId);
 
     if (!game) {
       return NextResponse.json(
@@ -94,14 +90,15 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const players = getPlayersByGame(gameId) as Player[];
+    const players = await getPlayersByGame(gameId);
 
     return NextResponse.json({
       success: true,
       game,
       players,
     });
-  } catch {
+  } catch (error) {
+    console.error("Error getting game:", error);
     return NextResponse.json(
       { success: false, error: "Erreur de serveur" },
       { status: 500 }
@@ -121,7 +118,7 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const game = getGame(gameId) as Game | undefined;
+    const game = await getGame(gameId);
 
     if (!game) {
       return NextResponse.json(
@@ -132,21 +129,21 @@ export async function PATCH(request: NextRequest) {
 
     switch (action) {
       case "start":
-        updateGameStatus(gameId, "playing", 1);
+        await updateGameStatus(gameId, "playing", 1);
         break;
       case "next_round":
         const nextRound = game.current_round + 1;
         if (nextRound > game.total_rounds) {
-          updateGameStatus(gameId, "finished");
+          await updateGameStatus(gameId, "finished");
         } else {
-          updateGameStatus(gameId, "playing", nextRound);
+          await updateGameStatus(gameId, "playing", nextRound);
         }
         break;
       case "round_end":
-        updateGameStatus(gameId, "round_end");
+        await updateGameStatus(gameId, "round_end");
         break;
       case "finish":
-        updateGameStatus(gameId, "finished");
+        await updateGameStatus(gameId, "finished");
         break;
       default:
         return NextResponse.json(
@@ -155,15 +152,16 @@ export async function PATCH(request: NextRequest) {
         );
     }
 
-    const updatedGame = getGame(gameId) as Game;
-    const players = getPlayersByGame(gameId) as Player[];
+    const updatedGame = await getGame(gameId);
+    const players = await getPlayersByGame(gameId);
 
     return NextResponse.json({
       success: true,
       game: updatedGame,
       players,
     });
-  } catch {
+  } catch (error) {
+    console.error("Error updating game:", error);
     return NextResponse.json(
       { success: false, error: "Erreur de serveur" },
       { status: 500 }
@@ -184,10 +182,11 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    deleteGame(gameId);
+    await deleteGame(gameId);
 
     return NextResponse.json({ success: true });
-  } catch {
+  } catch (error) {
+    console.error("Error deleting game:", error);
     return NextResponse.json(
       { success: false, error: "Erreur de serveur" },
       { status: 500 }

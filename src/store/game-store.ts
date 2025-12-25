@@ -2,12 +2,11 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { GameState, Player, Game, Round, Hint, Answer } from "@/types";
+import type { GameState, Player, Game, Hint, Answer } from "@/types";
 
 interface ExtendedGameState extends GameState {
   game: Game | null;
   players: Player[];
-  currentRound: Round | null;
   hints: Hint[];
   timeRemaining: number;
   hasAnswered: boolean;
@@ -19,7 +18,6 @@ interface ExtendedGameState extends GameState {
   setPlayer: (playerId: string, playerName: string, isHost: boolean) => void;
   setGame: (game: Game | null) => void;
   setPlayers: (players: Player[]) => void;
-  setCurrentRound: (round: Round | null) => void;
   setHints: (hints: Hint[]) => void;
   revealHint: (index: number) => void;
   setTimeRemaining: (time: number) => void;
@@ -39,7 +37,6 @@ const initialState = {
   isAuthenticated: false,
   game: null,
   players: [],
-  currentRound: null,
   hints: [],
   timeRemaining: 30,
   hasAnswered: false,
@@ -61,8 +58,6 @@ export const useGameStore = create<ExtendedGameState>()(
       setGame: (game) => set({ game }),
       
       setPlayers: (players) => set({ players }),
-      
-      setCurrentRound: (round) => set({ currentRound: round, hasAnswered: false }),
       
       setHints: (hints) => set({ hints }),
       
@@ -93,7 +88,6 @@ export const useGameStore = create<ExtendedGameState>()(
       
       reset: () => set({
         game: null,
-        currentRound: null,
         hints: [],
         timeRemaining: 30,
         hasAnswered: false,
