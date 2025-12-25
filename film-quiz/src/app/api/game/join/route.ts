@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { v4 as uuidv4 } from "uuid";
 import { getGame, addPlayer, getPlayersByGame } from "@/lib/db";
-import type { Game, Player } from "@/types";
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,7 +12,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const game = getGame(gameId.toUpperCase()) as Game | undefined;
+    const normalizedGameId = gameId.toUpperCase();
+    const game = await getGame(normalizedGameId);
 
     if (!game) {
       return NextResponse.json(
@@ -31,7 +30,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if player name already exists
-    const players = getPlayersByGame(gameId.toUpperCase()) as Player[];
+    const players = await getPlayersByGame(normalizedGameId);
     const nameExists = players.some(
       (p) => p.name.toLowerCase() === playerName.trim().toLowerCase()
     );
@@ -43,18 +42,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const playerId = uuidv4();
-    addPlayer(playerId, gameId.toUpperCase(), playerName.trim(), false);
-
-    const updatedPlayers = getPlayersByGame(gameId.toUpperCase()) as Player[];
+    const player = await addPlayer(normalizedGameId, playerName.trim(), false);
+    const updatedPlayers = await getPlayersByGame(normalizedGameId);
 
     return NextResponse.json({
       success: true,
       game,
-      playerId,
+      playerId: player.id,
       players: updatedPlayers,
     });
-  } catch {
+  } catch (error) {
+    console.error("Error joining game:", error);
     return NextResponse.json(
       { success: false, error: "Erreur de serveur" },
       { status: 500 }

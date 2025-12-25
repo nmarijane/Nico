@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { v4 as uuidv4 } from "uuid";
 import {
   getGame,
   getCurrentRound,
@@ -13,7 +12,7 @@ import {
   getPlayersByGame,
 } from "@/lib/db";
 import { checkAnswer, getImageUrl } from "@/lib/tmdb";
-import type { Game, Round, Answer, Player, Hint } from "@/types";
+import type { Hint } from "@/types";
 
 // Get current round info
 export async function GET(request: NextRequest) {
@@ -29,7 +28,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const game = getGame(gameId) as Game | undefined;
+    const game = await getGame(gameId);
 
     if (!game) {
       return NextResponse.json(
@@ -38,7 +37,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const round = getCurrentRound(gameId) as Round | undefined;
+    const round = await getCurrentRound(gameId);
 
     if (!round) {
       return NextResponse.json(
@@ -49,11 +48,11 @@ export async function GET(request: NextRequest) {
 
     // Start the round if not already started
     if (!round.started_at) {
-      startRound(round.id);
+      await startRound(round.id);
     }
 
-    const hints = JSON.parse(round.hints) as Hint[];
-    const playerAnswered = playerId ? hasPlayerAnswered(round.id, playerId) : false;
+    const hints = round.hints as unknown as Hint[];
+    const playerAnswered = playerId ? await hasPlayerAnswered(round.id, playerId) : false;
 
     // Don't reveal the answer if game is still playing
     const roundData = {
@@ -71,7 +70,8 @@ export async function GET(request: NextRequest) {
       success: true,
       round: roundData,
     });
-  } catch {
+  } catch (error) {
+    console.error("Error getting round:", error);
     return NextResponse.json(
       { success: false, error: "Erreur de serveur" },
       { status: 500 }
@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const game = getGame(gameId) as Game | undefined;
+    const game = await getGame(gameId);
 
     if (!game || game.status !== "playing") {
       return NextResponse.json(
@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const round = getCurrentRound(gameId) as Round | undefined;
+    const round = await getCurrentRound(gameId);
 
     if (!round) {
       return NextResponse.json(
@@ -110,7 +110,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if player already answered
-    if (hasPlayerAnswered(round.id, playerId)) {
+    const alreadyAnswered = await hasPlayerAnswered(round.id, playerId);
+    if (alreadyAnswered) {
       return NextResponse.json(
         { success: false, error: "Vous avez déjà répondu" },
         { status: 400 }
@@ -121,19 +122,18 @@ export async function POST(request: NextRequest) {
     const isCorrect = checkAnswer(answer, round.title);
     
     // Calculate points based on answer order
-    const existingAnswers = getAnswersByRound(round.id) as Answer[];
+    const existingAnswers = await getAnswersByRound(round.id);
     const correctAnswersCount = existingAnswers.filter((a) => a.is_correct).length;
     
     // Points: 100 for first correct, 80 for second, 60 for third, etc.
     const pointsEarned = isCorrect ? Math.max(20, 100 - correctAnswersCount * 20) : 0;
 
     // Record the answer
-    const answerId = uuidv4();
-    recordAnswer(answerId, round.id, playerId, answer, isCorrect, pointsEarned);
+    await recordAnswer(round.id, playerId, answer, isCorrect, pointsEarned);
 
     // Update player score
     if (pointsEarned > 0) {
-      updatePlayerScore(playerId, pointsEarned);
+      await updatePlayerScore(playerId, pointsEarned);
     }
 
     return NextResponse.json({
@@ -141,7 +141,8 @@ export async function POST(request: NextRequest) {
       isCorrect,
       pointsEarned,
     });
-  } catch {
+  } catch (error) {
+    console.error("Error submitting answer:", error);
     return NextResponse.json(
       { success: false, error: "Erreur de serveur" },
       { status: 500 }
@@ -161,7 +162,7 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const round = getRound(roundId) as Round | undefined;
+    const round = await getRound(roundId);
 
     if (!round) {
       return NextResponse.json(
@@ -172,11 +173,11 @@ export async function PATCH(request: NextRequest) {
 
     // End the round
     if (!round.ended_at) {
-      endRound(roundId);
+      await endRound(roundId);
     }
 
-    const answers = getAnswersByRound(roundId) as Answer[];
-    const players = getPlayersByGame(gameId) as Player[];
+    const answers = await getAnswersByRound(roundId);
+    const players = await getPlayersByGame(gameId);
 
     return NextResponse.json({
       success: true,
@@ -189,7 +190,8 @@ export async function PATCH(request: NextRequest) {
       },
       players,
     });
-  } catch {
+  } catch (error) {
+    console.error("Error ending round:", error);
     return NextResponse.json(
       { success: false, error: "Erreur de serveur" },
       { status: 500 }

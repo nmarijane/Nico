@@ -17,7 +17,7 @@ export interface Player {
   game_id: string;
   name: string;
   score: number;
-  is_host: number;
+  is_host: boolean;
   joined_at: string;
 }
 
@@ -29,8 +29,8 @@ export interface Round {
   media_type: MediaType;
   title: string;
   poster_path: string | null;
-  overview: string;
-  hints: string;
+  overview: string | null;
+  hints: Hint[];
   started_at: string | null;
   ended_at: string | null;
 }
@@ -40,7 +40,7 @@ export interface Answer {
   round_id: string;
   player_id: string;
   answer: string;
-  is_correct: number;
+  is_correct: boolean;
   points_earned: number;
   answered_at: string;
   player_name?: string;
