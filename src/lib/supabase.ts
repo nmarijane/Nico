@@ -3,23 +3,43 @@ import { createClient, SupabaseClient } from "@supabase/supabase-js";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
+// Validation des variables d'environnement
+function validateEnv() {
+  if (!supabaseUrl || supabaseUrl === "https://your-project.supabase.co") {
+    console.error("❌ NEXT_PUBLIC_SUPABASE_URL n'est pas configuré!");
+    console.error("   Allez sur https://supabase.com/dashboard > votre projet > Settings > API");
+    return false;
+  }
+  if (!supabaseAnonKey || supabaseAnonKey === "your-anon-key") {
+    console.error("❌ NEXT_PUBLIC_SUPABASE_ANON_KEY n'est pas configuré!");
+    console.error("   Allez sur https://supabase.com/dashboard > votre projet > Settings > API");
+    return false;
+  }
+  return true;
+}
+
 let supabaseInstance: SupabaseClient | null = null;
 
 function getSupabaseClient(): SupabaseClient {
-  if (!supabaseUrl || !supabaseAnonKey) {
+  if (!validateEnv()) {
     throw new Error(
-      "Missing Supabase environment variables. Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY"
+      "Configuration Supabase manquante. Vérifiez vos variables d'environnement dans .env.local"
     );
   }
   
   if (!supabaseInstance) {
-    supabaseInstance = createClient(supabaseUrl, supabaseAnonKey);
+    supabaseInstance = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+    });
   }
   
   return supabaseInstance;
 }
 
-// Client for browser (with realtime) - lazy initialization
+// Client pour le navigateur (avec realtime) - initialisation lazy
 export const supabase = {
   get client() {
     return getSupabaseClient();
@@ -30,17 +50,18 @@ export const supabase = {
     getSupabaseClient().removeChannel(channel),
 };
 
-// Server client (for API routes)
+// Client serveur (pour les API routes)
 export function createServerClient(): SupabaseClient {
-  if (!supabaseUrl || !supabaseAnonKey) {
+  if (!validateEnv()) {
     throw new Error(
-      "Missing Supabase environment variables. Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY"
+      "Configuration Supabase manquante. Vérifiez vos variables d'environnement dans .env.local"
     );
   }
   
   return createClient(supabaseUrl, supabaseAnonKey, {
     auth: {
       persistSession: false,
+      autoRefreshToken: false,
     },
   });
 }

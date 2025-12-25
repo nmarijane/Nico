@@ -25,14 +25,20 @@ export async function POST(request: NextRequest) {
     // Generate a short game ID
     const gameId = Math.random().toString(36).substring(2, 8).toUpperCase();
 
+    console.log(`📝 Création de la partie ${gameId}...`);
+
     // Create the game
     await createGame(gameId, totalRounds, timePerQuestion);
+    console.log(`✅ Partie créée`);
 
     // Add the host player
     const player = await addPlayer(gameId, playerName.trim(), true);
+    console.log(`✅ Joueur hôte ajouté: ${playerName}`);
 
     // Generate rounds with random media
+    console.log(`🎬 Récupération des films/séries...`);
     const media = await getRandomMedia(totalRounds);
+    console.log(`✅ ${media.length} médias récupérés`);
     
     for (let i = 0; i < media.length; i++) {
       const m = media[i];
@@ -49,6 +55,7 @@ export async function POST(request: NextRequest) {
         hints
       );
     }
+    console.log(`✅ ${media.length} manches créées`);
 
     const game = await getGame(gameId);
     const players = await getPlayersByGame(gameId);
@@ -60,9 +67,17 @@ export async function POST(request: NextRequest) {
       players,
     });
   } catch (error) {
-    console.error("Error creating game:", error);
+    console.error("❌ Erreur création partie:", error);
+    
+    // Message d'erreur plus détaillé
+    const errorMessage = error instanceof Error ? error.message : "Erreur inconnue";
+    
     return NextResponse.json(
-      { success: false, error: "Erreur lors de la création de la partie" },
+      { 
+        success: false, 
+        error: "Erreur lors de la création de la partie",
+        details: errorMessage
+      },
       { status: 500 }
     );
   }
@@ -98,7 +113,7 @@ export async function GET(request: NextRequest) {
       players,
     });
   } catch (error) {
-    console.error("Error getting game:", error);
+    console.error("❌ Erreur récupération partie:", error);
     return NextResponse.json(
       { success: false, error: "Erreur de serveur" },
       { status: 500 }
@@ -161,7 +176,7 @@ export async function PATCH(request: NextRequest) {
       players,
     });
   } catch (error) {
-    console.error("Error updating game:", error);
+    console.error("❌ Erreur mise à jour partie:", error);
     return NextResponse.json(
       { success: false, error: "Erreur de serveur" },
       { status: 500 }
@@ -186,7 +201,7 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Error deleting game:", error);
+    console.error("❌ Erreur suppression partie:", error);
     return NextResponse.json(
       { success: false, error: "Erreur de serveur" },
       { status: 500 }

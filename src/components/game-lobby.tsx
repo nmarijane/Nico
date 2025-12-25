@@ -59,9 +59,14 @@ export function GameLobby() {
         setGame(data.game);
         setPlayers(data.players);
       } else {
-        setError(data.error || "Erreur lors de la création");
+        const errorMsg = data.details 
+          ? `${data.error}: ${data.details}` 
+          : data.error || "Erreur lors de la création";
+        setError(errorMsg);
+        console.error("Erreur:", data);
       }
-    } catch {
+    } catch (err) {
+      console.error("Erreur réseau:", err);
       setError("Erreur de connexion au serveur");
     } finally {
       setIsLoading(false);
